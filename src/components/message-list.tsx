@@ -1,3 +1,5 @@
+'use client';
+
 import { useEffect, useRef } from 'react';
 import { useChatStore } from '@/store/chat';
 import { Message } from './message';
@@ -21,7 +23,7 @@ export function MessageList() {
       <AnimatePresence initial={false}>
         {messages.map((message) => (
           <motion.div
-            key={message._id}
+            key={message.id}
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -20 }}

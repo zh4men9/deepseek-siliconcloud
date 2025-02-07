@@ -1,3 +1,5 @@
+'use client';
+
 import { useState, useRef, useEffect } from 'react';
 import { useChatStore } from '@/store/chat';
 import { Button } from '@/components/ui/button';

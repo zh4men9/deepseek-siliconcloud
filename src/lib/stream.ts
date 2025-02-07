@@ -1,4 +1,4 @@
-import { Message } from '@/models/message';
+import { updateMessage } from '@/lib/db';
 
 export async function processStream(
   response: Response,
@@ -49,7 +49,7 @@ export async function processStream(
             onUpdate(accumulatedContent);
           }
 
-          await Message.findByIdAndUpdate(messageId, {
+          await updateMessage(messageId, {
             content: accumulatedContent,
             reasoning_content: accumulatedReasoning,
             status: 'processing',
@@ -60,12 +60,12 @@ export async function processStream(
       }
     }
 
-    await Message.findByIdAndUpdate(messageId, {
+    await updateMessage(messageId, {
       status: 'completed',
     });
   } catch (error) {
     console.error('Stream processing error:', error);
-    await Message.findByIdAndUpdate(messageId, {
+    await updateMessage(messageId, {
       status: 'error',
     });
     throw error;

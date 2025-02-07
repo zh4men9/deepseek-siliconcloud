@@ -1,9 +1,11 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { kv } from '@vercel/kv';
 
-export async function POST(req: Request) {
+export const runtime = 'edge';
+
+export async function POST(request: NextRequest) {
   try {
-    const { code } = await req.json();
+    const { code } = await request.json();
     
     // 检查邀请码是否有效
     const validCodes = process.env.INVITE_CODES?.split(',') || [];

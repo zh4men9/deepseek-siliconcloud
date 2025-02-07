@@ -1,18 +1,16 @@
 import { NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth/next';
-import { authOptions } from '@/lib/auth';
-import { Message } from '@/models/message';
-import { Conversation } from '@/models/conversation';
+import { auth } from '@clerk/nextjs/server';
+import { getMessage, getConversation, getConversationMessages } from '@/lib/db';
 import { siliconCloudAPI } from '@/lib/silicon-cloud';
 import { processStream } from '@/lib/stream';
-import connectDB from '@/lib/db';
 
 export const runtime = 'edge';
 
 export async function POST(req: Request) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user) {
+    const session = await auth();
+    const userId = session.userId;
+    if (!userId) {
       return new NextResponse('Unauthorized', { status: 401 });
     }
 
@@ -21,31 +19,22 @@ export async function POST(req: Request) {
       return new NextResponse('Message ID is required', { status: 400 });
     }
 
-    await connectDB();
-
-    const message = await Message.findById(messageId).populate({
-      path: 'conversationId',
-      populate: {
-        path: 'messages',
-        options: { sort: { createdAt: 1 } },
-      },
-    });
-
+    const message = await getMessage(messageId);
     if (!message) {
       return new NextResponse('Message not found', { status: 404 });
     }
 
-    const conversation = message.conversationId as any;
-    if (conversation.userId.toString() !== session.user.id) {
+    const conversation = await getConversation(message.conversationId);
+    if (!conversation || conversation.userId !== userId) {
       return new NextResponse('Unauthorized', { status: 401 });
     }
 
-    const messages = conversation.messages.map((msg: any) => ({
+    const messages = await getConversationMessages(message.conversationId);
+
+    const response = await siliconCloudAPI.chat(messages.map(msg => ({
       role: msg.role,
       content: msg.content,
-    }));
-
-    const response = await siliconCloudAPI.chat(messages);
+    })));
 
     const encoder = new TextEncoder();
     const stream = new ReadableStream({

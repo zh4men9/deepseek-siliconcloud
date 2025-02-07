@@ -1,16 +1,15 @@
 import { create } from 'zustand';
-import { Message } from '@/models/message';
-import { Conversation } from '@/models/conversation';
+import { Message, Conversation } from '@/lib/types';
 
 interface ChatState {
-  messages: any[];
-  currentConversation: any | null;
+  messages: Message[];
+  currentConversation: Conversation | null;
   isProcessing: boolean;
   error: string | null;
-  setMessages: (messages: any[]) => void;
-  addMessage: (message: any) => void;
-  updateMessage: (messageId: string, update: Partial<any>) => void;
-  setCurrentConversation: (conversation: any | null) => void;
+  setMessages: (messages: Message[]) => void;
+  addMessage: (message: Message) => void;
+  updateMessage: (messageId: string, update: Partial<Message>) => void;
+  setCurrentConversation: (conversation: Conversation | null) => void;
   setIsProcessing: (isProcessing: boolean) => void;
   setError: (error: string | null) => void;
   sendMessage: (content: string) => Promise<void>;
@@ -27,7 +26,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   updateMessage: (messageId, update) =>
     set((state) => ({
       messages: state.messages.map((msg) =>
-        msg._id === messageId ? { ...msg, ...update } : msg
+        msg.id === messageId ? { ...msg, ...update } : msg
       ),
     })),
   setCurrentConversation: (conversation) => set({ currentConversation: conversation }),
@@ -48,7 +47,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           content,
-          conversationId: currentConversation?._id,
+          conversationId: currentConversation?.id,
         }),
       });
 
@@ -68,7 +67,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          messageId: data.message._id,
+          messageId: data.message.id,
         }),
       });
 
@@ -81,11 +80,14 @@ export const useChatStore = create<ChatState>((set, get) => ({
         throw new Error('No reader available');
       }
 
-      const assistantMessage = {
-        _id: Date.now().toString(),
+      const assistantMessage: Message = {
+        id: Date.now().toString(),
+        conversationId: currentConversation?.id || data.conversation.id,
         role: 'assistant',
         content: '',
         status: 'processing',
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
       };
       state.addMessage(assistantMessage);
 
@@ -102,7 +104,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
             try {
               const data = JSON.parse(line.slice(6));
-              state.updateMessage(assistantMessage._id, {
+              state.updateMessage(assistantMessage.id, {
                 content: data.content,
               });
             } catch (e) {
@@ -114,7 +116,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
         reader.releaseLock();
       }
 
-      state.updateMessage(assistantMessage._id, {
+      state.updateMessage(assistantMessage.id, {
         status: 'completed',
       });
     } catch (error) {

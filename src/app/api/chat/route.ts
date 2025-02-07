@@ -1,41 +1,40 @@
-import { NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth/next';
-import { authOptions } from '@/lib/auth';
-import { Message } from '@/models/message';
-import { Conversation } from '@/models/conversation';
-import connectDB from '@/lib/db';
+import { NextRequest, NextResponse } from 'next/server';
+import { auth } from '@clerk/nextjs/server';
+import { createMessage, createConversation, getConversation } from '@/lib/db';
 
-export async function POST(req: Request) {
+export const runtime = 'edge';
+
+export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user) {
+    const session = await auth();
+    const userId = session.userId;
+    if (!userId) {
       return new NextResponse('Unauthorized', { status: 401 });
     }
 
-    const { content, conversationId } = await req.json();
+    const { content, conversationId } = await request.json();
     if (!content) {
       return new NextResponse('Content is required', { status: 400 });
     }
 
-    await connectDB();
-
     let conversation;
     if (conversationId) {
-      conversation = await Conversation.findById(conversationId);
-      if (!conversation || conversation.userId.toString() !== session.user.id) {
+      conversation = await getConversation(conversationId);
+      if (!conversation || conversation.userId !== userId) {
         return new NextResponse('Conversation not found', { status: 404 });
       }
     } else {
-      conversation = await Conversation.create({
-        userId: session.user.id,
+      conversation = await createConversation({
+        userId,
         title: content.slice(0, 100),
       });
     }
 
-    const message = await Message.create({
-      conversationId: conversation._id,
+    const message = await createMessage({
+      conversationId: conversation.id,
       content,
       role: 'user',
+      status: 'pending',
     });
 
     return NextResponse.json({
