@@ -1,3 +1,5 @@
+'use client';
+
 import { useUser } from '@clerk/nextjs';
 import { ThemeToggle } from '@/components/theme-toggle';
 import Link from 'next/link';
