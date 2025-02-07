@@ -49,24 +49,31 @@ export async function processStream(
             onUpdate(accumulatedContent);
           }
 
-          await updateMessage(messageId, {
-            content: accumulatedContent,
-            reasoning_content: accumulatedReasoning,
-            status: 'processing',
-          });
+          if (content) {
+            await updateMessage(messageId, {
+              content: accumulatedContent,
+              reasoning_content: accumulatedReasoning,
+              status: 'processing',
+            });
+          }
         } catch (e) {
-          console.error('Error parsing chunk:', e);
+          console.error('Error parsing chunk:', e, 'Raw data:', data);
+          continue;
         }
       }
     }
 
     await updateMessage(messageId, {
+      content: accumulatedContent,
+      reasoning_content: accumulatedReasoning,
       status: 'completed',
     });
   } catch (error) {
     console.error('Stream processing error:', error);
     await updateMessage(messageId, {
       status: 'error',
+      content: accumulatedContent,
+      reasoning_content: accumulatedReasoning + '\n\nError: ' + (error instanceof Error ? error.message : String(error)),
     });
     throw error;
   } finally {
