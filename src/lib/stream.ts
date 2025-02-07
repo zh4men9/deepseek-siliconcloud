@@ -30,7 +30,12 @@ export async function processStream(
 
         try {
           const parsed = JSON.parse(data);
-          const content = parsed.choices[0]?.delta?.content || '';
+          if (!parsed.choices?.[0]?.delta) {
+            console.error('Invalid chunk format:', data);
+            continue;
+          }
+
+          const content = parsed.choices[0].delta.content || '';
           
           if (content.includes('[REASONING]')) {
             isReasoning = true;
@@ -44,18 +49,16 @@ export async function processStream(
 
           if (isReasoning) {
             accumulatedReasoning += content;
-          } else {
+          } else if (content) {
             accumulatedContent += content;
             onUpdate(accumulatedContent);
           }
 
-          if (content) {
-            await updateMessage(messageId, {
-              content: accumulatedContent,
-              reasoning_content: accumulatedReasoning,
-              status: 'processing',
-            });
-          }
+          await updateMessage(messageId, {
+            content: accumulatedContent,
+            reasoning_content: accumulatedReasoning,
+            status: 'processing',
+          });
         } catch (e) {
           console.error('Error parsing chunk:', e, 'Raw data:', data);
           continue;
@@ -63,16 +66,21 @@ export async function processStream(
       }
     }
 
-    await updateMessage(messageId, {
-      content: accumulatedContent,
-      reasoning_content: accumulatedReasoning,
-      status: 'completed',
-    });
+    // Only update status to completed if we have content
+    if (accumulatedContent) {
+      await updateMessage(messageId, {
+        content: accumulatedContent,
+        reasoning_content: accumulatedReasoning,
+        status: 'completed',
+      });
+    } else {
+      throw new Error('No content received from the API');
+    }
   } catch (error) {
     console.error('Stream processing error:', error);
     await updateMessage(messageId, {
       status: 'error',
-      content: accumulatedContent,
+      content: accumulatedContent || 'Error: Failed to generate response',
       reasoning_content: accumulatedReasoning + '\n\nError: ' + (error instanceof Error ? error.message : String(error)),
     });
     throw error;

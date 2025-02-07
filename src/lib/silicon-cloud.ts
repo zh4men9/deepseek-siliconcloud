@@ -8,13 +8,13 @@ export class SiliconCloudAPI {
     if (!apiKey) {
       throw new Error('SILICONFLOW_API_KEY is not defined');
     }
+
     this.apiKey = apiKey;
     this.baseUrl = baseUrl || 'https://api.siliconflow.cn/v1';
   }
 
   async testConnection() {
     try {
-      // 发送一条简单的中文消息测试
       const response = await fetch(`${this.baseUrl}/chat/completions`, {
         method: 'POST',
         headers: {
@@ -33,6 +33,11 @@ export class SiliconCloudAPI {
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => null);
+        console.error('[SILICON_CLOUD_API_TEST_ERROR]', {
+          status: response.status,
+          statusText: response.statusText,
+          error: errorData
+        });
         throw new Error(
           `API test failed with status ${response.status}: ${
             errorData ? JSON.stringify(errorData) : 'Unknown error'
@@ -40,7 +45,6 @@ export class SiliconCloudAPI {
         );
       }
 
-      // 获取并返回实际的响应内容
       const data = await response.json();
       return {
         success: true,
@@ -54,6 +58,10 @@ export class SiliconCloudAPI {
 
   async chat(messages: { role: string; content: string }[]) {
     try {
+      if (!messages || messages.length === 0) {
+        throw new Error('Messages array is empty or undefined');
+      }
+
       const response = await fetch(`${this.baseUrl}/chat/completions`, {
         method: 'POST',
         headers: {
@@ -75,6 +83,12 @@ export class SiliconCloudAPI {
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => null);
+        console.error('[SILICON_CLOUD_API_ERROR]', {
+          status: response.status,
+          statusText: response.statusText,
+          error: errorData,
+          messages: messages
+        });
         throw new Error(
           `API request failed with status ${response.status}: ${
             errorData ? JSON.stringify(errorData) : 'Unknown error'
