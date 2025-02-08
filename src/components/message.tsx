@@ -1,6 +1,10 @@
+'use client';
+
 import { cn } from '@/lib/utils';
-import { Bot, User } from 'lucide-react';
+import { Bot, User, ChevronDown, ChevronUp } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { useState } from 'react';
+import { Button } from './ui/button';
 
 interface MessageProps {
   role: 'user' | 'assistant';
@@ -10,6 +14,7 @@ interface MessageProps {
 }
 
 export function Message({ role, content, reasoning_content, status }: MessageProps) {
+  const [isReasoningExpanded, setIsReasoningExpanded] = useState(false);
   const isUser = role === 'user';
 
   return (
@@ -30,7 +35,7 @@ export function Message({ role, content, reasoning_content, status }: MessagePro
           </div>
         )}
       </div>
-      <div className="flex flex-col gap-2">
+      <div className="flex flex-col gap-2 flex-1">
         <div className="text-sm font-medium">{isUser ? '用户' : 'DeepSeek'}</div>
         <div className="text-sm text-muted-foreground whitespace-pre-wrap break-words">
           {content}
@@ -43,11 +48,43 @@ export function Message({ role, content, reasoning_content, status }: MessagePro
               ▍
             </motion.span>
           )}
+          {status === 'error' && (
+            <div className="text-red-500 mt-2">
+              {content || '服务器繁忙，请稍后重试'}
+            </div>
+          )}
         </div>
         {reasoning_content && (
-          <div className="mt-2 rounded-md bg-muted/50 p-2 text-xs text-muted-foreground">
-            <div className="font-medium mb-1">思考过程：</div>
-            <div className="whitespace-pre-wrap break-words">{reasoning_content}</div>
+          <div className="mt-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="mb-2 text-xs"
+              onClick={() => setIsReasoningExpanded(!isReasoningExpanded)}
+            >
+              {isReasoningExpanded ? (
+                <>
+                  <ChevronUp className="h-4 w-4 mr-1" />
+                  收起推理过程
+                </>
+              ) : (
+                <>
+                  <ChevronDown className="h-4 w-4 mr-1" />
+                  展开推理过程
+                </>
+              )}
+            </Button>
+            {isReasoningExpanded && (
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: 'auto', opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                className="rounded-md bg-muted/50 p-2 text-xs text-muted-foreground"
+              >
+                <div className="font-medium mb-1">推理过程：</div>
+                <div className="whitespace-pre-wrap break-words">{reasoning_content}</div>
+              </motion.div>
+            )}
           </div>
         )}
       </div>

@@ -24,14 +24,12 @@ export async function processStream(
 
       for (const line of lines) {
         if (!line.trim() || !line.startsWith('data: ')) continue;
-
-        const data = line.slice(6);
-        if (data === '[DONE]') continue;
+        if (line === 'data: [DONE]') continue;
 
         try {
-          const parsed = JSON.parse(data);
+          const parsed = JSON.parse(line.slice(6));
           if (!parsed.choices?.[0]?.delta) {
-            console.error('Invalid chunk format:', data);
+            console.error('Invalid chunk format:', line);
             continue;
           }
 
@@ -49,7 +47,7 @@ export async function processStream(
 
           if (isReasoning) {
             accumulatedReasoning += content;
-          } else if (content) {
+          } else {
             accumulatedContent += content;
             onUpdate(accumulatedContent);
           }
@@ -60,13 +58,12 @@ export async function processStream(
             status: 'processing',
           });
         } catch (e) {
-          console.error('Error parsing chunk:', e, 'Raw data:', data);
+          console.error('Error parsing chunk:', e, 'Raw data:', line);
           continue;
         }
       }
     }
 
-    // Only update status to completed if we have content
     if (accumulatedContent) {
       await updateMessage(messageId, {
         content: accumulatedContent,
@@ -78,10 +75,13 @@ export async function processStream(
     }
   } catch (error) {
     console.error('Stream processing error:', error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    const isServerBusy = errorMessage.includes('503') || errorMessage.includes('busy');
+    
     await updateMessage(messageId, {
       status: 'error',
-      content: accumulatedContent || 'Error: Failed to generate response',
-      reasoning_content: accumulatedReasoning + '\n\nError: ' + (error instanceof Error ? error.message : String(error)),
+      content: isServerBusy ? '服务器繁忙，请稍后重试' : (accumulatedContent || 'Error: Failed to generate response'),
+      reasoning_content: accumulatedReasoning + (isServerBusy ? '' : '\n\nError: ' + errorMessage),
     });
     throw error;
   } finally {
