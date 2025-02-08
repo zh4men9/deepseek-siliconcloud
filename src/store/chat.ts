@@ -44,11 +44,35 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
     const poll = async () => {
       try {
-        const response = await fetch(`/api/chat/status?queueId=${queueId}`);
+        // 添加时间戳防止缓存
+        const timestamp = Date.now();
+        const response = await fetch(`/api/chat/status?queueId=${queueId}&_=${timestamp}`, {
+          headers: {
+            'Cache-Control': 'no-cache',
+            'Pragma': 'no-cache'
+          },
+          credentials: 'include' // 确保发送认证信息
+        });
         
         if (response.status === 401 && authRetries < maxAuthRetries) {
           console.log('认证错误，正在重试...', authRetries + 1);
           authRetries++;
+          
+          // 尝试刷新会话
+          try {
+            const refreshResponse = await fetch('/api/auth/refresh', {
+              method: 'POST',
+              credentials: 'include'
+            });
+            
+            if (refreshResponse.ok) {
+              console.log('会话已刷新');
+              return false; // 继续轮询
+            }
+          } catch (refreshError) {
+            console.error('刷新会话失败:', refreshError);
+          }
+          
           await new Promise(resolve => setTimeout(resolve, 2000));
           return false;
         }
@@ -59,7 +83,6 @@ export const useChatStore = create<ChatState>((set, get) => ({
               content: '会话已过期，请刷新页面重新登录',
               status: 'error',
             });
-            window.location.reload(); // 自动刷新页面
             return true;
           }
           throw new Error('获取消息状态失败');
@@ -124,7 +147,12 @@ export const useChatStore = create<ChatState>((set, get) => ({
       // 发送消息
       const response = await fetch('/api/chat', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Cache-Control': 'no-cache',
+          'Pragma': 'no-cache'
+        },
+        credentials: 'include', // 确保发送认证信息
         body: JSON.stringify({
           content,
           conversationId: currentConversation?.id,
@@ -145,7 +173,12 @@ export const useChatStore = create<ChatState>((set, get) => ({
       // 处理消息
       const processResponse = await fetch('/api/chat/process', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Cache-Control': 'no-cache',
+          'Pragma': 'no-cache'
+        },
+        credentials: 'include', // 确保发送认证信息
         body: JSON.stringify({
           messageId: data.message.id,
         }),
