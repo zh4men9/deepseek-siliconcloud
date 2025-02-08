@@ -39,7 +39,7 @@ export class SiliconCloudAPI {
   private async makeRequest(endpoint: string, body: ChatRequestBody, retryCount = 0): Promise<Response> {
     try {
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 8000); // 8秒超时
+      const timeout = setTimeout(() => controller.abort(), 30000); // 增加到30秒超时
 
       const response = await fetch(`${this.baseUrl}${endpoint}`, {
         method: 'POST',
@@ -77,17 +77,24 @@ export class SiliconCloudAPI {
 
         throw new Error(
           `API request failed with status ${response.status}: ${
-            errorData ? JSON.stringify(errorData) : 'Unknown error'
+            errorData ? JSON.stringify(errorData) : response.statusText
           }`
         );
       }
 
       return response;
     } catch (error) {
+      console.error('[SILICON_CLOUD_API_REQUEST_ERROR]', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        name: error instanceof Error ? error.name : 'Unknown',
+        retryCount,
+      });
+
       if (error instanceof Error && 
           (error.message.includes('503') || 
            error.message.includes('busy') || 
-           error.name === 'AbortError') && 
+           error.name === 'AbortError' || 
+           error.message.includes('timeout')) && 
           retryCount < this.maxRetries) {
         const delay = this.initialRetryDelay * Math.pow(2, retryCount);
         console.log(`Retrying after ${delay}ms (attempt ${retryCount + 1}/${this.maxRetries})`);
@@ -99,20 +106,7 @@ export class SiliconCloudAPI {
   }
 
   async testConnection(): Promise<Response> {
-    try {
-      const response = await this.makeRequest('/chat/completions', {
-        model: this.MODEL_NAME,
-        messages: [{ role: 'user', content: '你好' }],
-        temperature: 0.7,
-        max_tokens: 100,
-        stream: true,
-      });
-
-      return response;
-    } catch (error) {
-      console.error('[SILICON_CLOUD_API_TEST_ERROR]', error);
-      throw error;
-    }
+    return this.chat([{ role: 'user', content: '你好' }]);
   }
 
   async chat(messages: ChatMessage[]): Promise<Response> {
@@ -121,16 +115,18 @@ export class SiliconCloudAPI {
         throw new Error('Messages array is empty or undefined');
       }
 
-      return await this.makeRequest('/chat/completions', {
+      const response = await this.makeRequest('/chat/completions', {
         model: this.MODEL_NAME,
         messages,
         temperature: 0.7,
         max_tokens: 2000,
-        stream: true,
+        stream: false, // 测试时不使用流式响应
         top_p: 0.95,
         frequency_penalty: 0,
         presence_penalty: 0,
       });
+
+      return response;
     } catch (error) {
       console.error('[SILICON_CLOUD_API_ERROR]', error);
       if (error instanceof Error && 
@@ -146,4 +142,7 @@ export class SiliconCloudAPI {
 export const siliconCloudAPI = new SiliconCloudAPI('https://api.siliconflow.com/v1', 3, 1000);
 
 // 如果主域名失败，可以尝试使用备用域名
-export const fallbackAPI = new SiliconCloudAPI('https://api.siliconflow.cn/v1', 3, 1000); 
+export const fallbackAPI = new SiliconCloudAPI('https://api.siliconflow.cn/v1', 3, 1000);
+
+// 默认导出主 API 实例
+export default siliconCloudAPI; 

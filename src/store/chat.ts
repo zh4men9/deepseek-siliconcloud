@@ -13,6 +13,7 @@ interface ChatState {
   setIsProcessing: (isProcessing: boolean) => void;
   setError: (error: string | null) => void;
   sendMessage: (content: string) => Promise<void>;
+  pollMessageStatus: (messageId: string, queueId: string) => Promise<void>;
 }
 
 export const useChatStore = create<ChatState>((set, get) => ({
@@ -32,6 +33,57 @@ export const useChatStore = create<ChatState>((set, get) => ({
   setCurrentConversation: (conversation) => set({ currentConversation: conversation }),
   setIsProcessing: (isProcessing) => set({ isProcessing }),
   setError: (error) => set({ error }),
+
+  pollMessageStatus: async (messageId: string, queueId: string) => {
+    const state = get();
+    let retries = 0;
+    const maxRetries = 60; // 最多轮询60次
+    const interval = 1000; // 每秒轮询一次
+
+    const poll = async () => {
+      try {
+        const response = await fetch(`/api/chat/status?queueId=${queueId}`);
+        if (!response.ok) {
+          throw new Error('Failed to get message status');
+        }
+
+        const data = await response.json();
+        if (data.status === 'completed') {
+          state.updateMessage(messageId, {
+            content: data.result,
+            status: 'completed',
+          });
+          return true;
+        } else if (data.status === 'error') {
+          state.updateMessage(messageId, {
+            content: data.error || '服务器繁忙，请稍后重试',
+            status: 'error',
+          });
+          return true;
+        } else if (retries >= maxRetries) {
+          state.updateMessage(messageId, {
+            content: '响应超时，请重试',
+            status: 'error',
+          });
+          return true;
+        }
+
+        retries++;
+        return false;
+      } catch (error) {
+        console.error('Error polling message status:', error);
+        state.updateMessage(messageId, {
+          content: '获取消息状态失败',
+          status: 'error',
+        });
+        return true;
+      }
+    };
+
+    while (!(await poll())) {
+      await new Promise(resolve => setTimeout(resolve, interval));
+    }
+  },
 
   sendMessage: async (content: string) => {
     const state = get();
@@ -75,10 +127,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
         throw new Error('Failed to process message');
       }
 
-      const reader = processResponse.body?.getReader();
-      if (!reader) {
-        throw new Error('No reader available');
-      }
+      const processData = await processResponse.json();
 
       const assistantMessage: Message = {
         id: Date.now().toString(),
@@ -91,34 +140,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
       };
       state.addMessage(assistantMessage);
 
-      try {
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-
-          const chunk = new TextDecoder().decode(value);
-          const lines = chunk.split('\n');
-
-          for (const line of lines) {
-            if (!line.trim() || !line.startsWith('data: ')) continue;
-
-            try {
-              const data = JSON.parse(line.slice(6));
-              state.updateMessage(assistantMessage.id, {
-                content: data.content,
-              });
-            } catch (e) {
-              console.error('Error parsing chunk:', e);
-            }
-          }
-        }
-      } finally {
-        reader.releaseLock();
-      }
-
-      state.updateMessage(assistantMessage.id, {
-        status: 'completed',
-      });
+      // 开始轮询消息状态
+      await state.pollMessageStatus(assistantMessage.id, processData.queueId);
     } catch (error) {
       state.setError(error instanceof Error ? error.message : 'An error occurred');
       console.error('Error sending message:', error);
