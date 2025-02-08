@@ -4,20 +4,10 @@
   "installCommand": "pnpm install",
   "framework": "nextjs",
   "regions": ["hkg1"],
-  "functions": {
-    "api/**/*.ts": {
-      "memory": 1024,
-      "maxDuration": 60
-    }
-  },
   "crons": [
     {
       "path": "/api/chat/worker",
       "schedule": "* * * * *"
     }
-  ],
-  "env": {
-    "NEXT_PUBLIC_APP_URL": "https://$VERCEL_URL",
-    "NODE_ENV": "production"
-  }
+  ]
 } 
