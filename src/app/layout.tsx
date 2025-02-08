@@ -24,7 +24,16 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <ClerkProvider>
+    <ClerkProvider
+      appearance={{
+        baseTheme: undefined
+      }}
+      publishableKey={process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY}
+      afterSignInUrl="/"
+      afterSignUpUrl="/"
+      signInUrl="/sign-in"
+      signUpUrl="/sign-up"
+    >
       <html lang="zh-CN" suppressHydrationWarning>
         <body className={cn(
           'min-h-screen font-sans antialiased',
@@ -45,7 +54,14 @@ export default function RootLayout({
                 </SignInButton>
               </SignedOut>
               <SignedIn>
-                <UserButton afterSignOutUrl="/sign-in" />
+                <UserButton 
+                  afterSignOutUrl="/sign-in"
+                  appearance={{
+                    elements: {
+                      avatarBox: "w-8 h-8"
+                    }
+                  }}
+                />
               </SignedIn>
             </div>
             {children}

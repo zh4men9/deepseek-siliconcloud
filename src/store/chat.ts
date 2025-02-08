@@ -39,13 +39,33 @@ export const useChatStore = create<ChatState>((set, get) => ({
     let retries = 0;
     const maxRetries = 60; // 最多轮询60次
     const interval = 1000; // 每秒轮询一次
+    let authRetries = 0;
+    const maxAuthRetries = 3; // 最多重试认证3次
 
     const poll = async () => {
       try {
         const response = await fetch(`/api/chat/status?queueId=${queueId}`);
-        if (!response.ok) {
-          throw new Error('Failed to get message status');
+        
+        if (response.status === 401 && authRetries < maxAuthRetries) {
+          console.log('认证错误，正在重试...', authRetries + 1);
+          authRetries++;
+          await new Promise(resolve => setTimeout(resolve, 2000));
+          return false;
         }
+
+        if (!response.ok) {
+          if (response.status === 401) {
+            state.updateMessage(messageId, {
+              content: '会话已过期，请刷新页面重新登录',
+              status: 'error',
+            });
+            window.location.reload(); // 自动刷新页面
+            return true;
+          }
+          throw new Error('获取消息状态失败');
+        }
+
+        authRetries = 0; // 重置认证重试计数
 
         const data = await response.json();
         if (data.status === 'completed') {
@@ -71,9 +91,17 @@ export const useChatStore = create<ChatState>((set, get) => ({
         retries++;
         return false;
       } catch (error) {
-        console.error('Error polling message status:', error);
+        console.error('轮询消息状态出错:', error);
+        
+        if (error instanceof Error && error.name === 'TypeError') {
+          if (retries < maxRetries) {
+            retries++;
+            return false;
+          }
+        }
+        
         state.updateMessage(messageId, {
-          content: '获取消息状态失败',
+          content: '获取消息状态失败，请刷新页面重试',
           status: 'error',
         });
         return true;
