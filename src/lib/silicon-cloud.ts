@@ -1,3 +1,20 @@
+type ChatMessage = {
+  role: string;
+  content: string;
+};
+
+type ChatRequestBody = {
+  model: string;
+  messages: ChatMessage[];
+  temperature?: number;
+  max_tokens?: number;
+  stream?: boolean;
+  top_p?: number;
+  frequency_penalty?: number;
+  presence_penalty?: number;
+  reasoning?: boolean;
+};
+
 export class SiliconCloudAPI {
   private apiKey: string;
   private baseUrl: string;
@@ -13,7 +30,7 @@ export class SiliconCloudAPI {
     this.baseUrl = baseUrl || 'https://api.siliconflow.com/v1';
   }
 
-  private async makeRequest(endpoint: string, body: any) {
+  private async makeRequest(endpoint: string, body: ChatRequestBody): Promise<Response> {
     const response = await fetch(`${this.baseUrl}${endpoint}`, {
       method: 'POST',
       headers: {
@@ -45,7 +62,7 @@ export class SiliconCloudAPI {
     return response;
   }
 
-  async testConnection() {
+  async testConnection(): Promise<Response> {
     try {
       const response = await this.makeRequest('/chat/completions', {
         model: this.MODEL_NAME,
@@ -55,7 +72,6 @@ export class SiliconCloudAPI {
         stream: true,
       });
 
-      // 返回流式响应
       return response;
     } catch (error) {
       console.error('[SILICON_CLOUD_API_TEST_ERROR]', error);
@@ -63,7 +79,7 @@ export class SiliconCloudAPI {
     }
   }
 
-  async chat(messages: { role: string; content: string }[]) {
+  async chat(messages: ChatMessage[]): Promise<Response> {
     try {
       if (!messages || messages.length === 0) {
         throw new Error('Messages array is empty or undefined');
