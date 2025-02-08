@@ -4,7 +4,7 @@ import { siliconCloudAPI, fallbackAPI } from '@/lib/silicon-cloud';
 import { updateMessage } from '@/lib/db';
 
 export const runtime = 'nodejs';
-export const maxDuration = 300; // 5分钟超时
+export const maxDuration = 60; // 最大执行时间为60秒，符合 hobby 计划限制
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 async function processMessage(queueItem: any) {
